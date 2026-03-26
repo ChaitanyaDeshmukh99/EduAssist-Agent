@@ -4,3 +4,5 @@ __pycache__/
 .env
 study_tutor/.env
 study_tutor/data/*.json
+study_tutor/.streamlit/secrets.toml
+secrets.toml

@@ -1,19 +1,30 @@
 import streamlit as st
+import io
+import PyPDF2
+
+def extract_text_from_file(uploaded_file):
+    if not uploaded_file:
+        return None
+    try:
+        if uploaded_file.name.endswith(".txt"):
+            return uploaded_file.getvalue().decode("utf-8")
+        elif uploaded_file.name.endswith(".pdf"):
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.getvalue()))
+            text = ""
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+            return text
+    except Exception as e:
+        st.sidebar.error(f"Error reading file: {e}")
+    return None
 
 def sidebar_menu(memory):
     """Renders the sidebar for user preferences."""
     st.sidebar.title("🎓 Tutor Settings")
     
     profile = memory.get_user_profile()
-    
-    # Subject Selection
-    subjects = ["Python", "Machine Learning", "Data Science", "DevOps", "Mathematics", "Custom"]
-    current_subject = profile.get("subject", "Python")
-    subject_index = subjects.index(current_subject) if current_subject in subjects else 0
-    subject = st.sidebar.selectbox("Subject", subjects, index=subject_index)
-    
-    if subject == "Custom":
-        subject = st.sidebar.text_input("Specify Subject", value=profile.get("subject", ""))
     
     # Skill Level Selection
     levels = ["Beginner", "Intermediate", "Advanced"]
@@ -27,66 +38,106 @@ def sidebar_menu(memory):
     mode_index = modes.index(current_mode) if current_mode in modes else 0
     mode = st.sidebar.selectbox("Teaching Mode", modes, index=mode_index)
     
-    st.sidebar.divider()
-    st.sidebar.subheader("🤖 LLM Settings")
-    
-    # Model Selection
-    available_models = {
-        "Gemini 2.5 Flash (Google)": "gemini-2.5-flash",
-        "Gemini 2.5 Pro (Google)": "gemini-2.5-pro",
-        "Mistral 7B (HF)": "mistralai/Mistral-7B-Instruct-v0.2",
-        "Gemma 7B (HF)": "google/gemma-7b-it",
-        "GPT-4o (OpenAI)": "gpt-4o",
-        "GPT-3.5 Turbo": "gpt-3.5-turbo"
-    }
-    current_model_id = profile.get("model_id", "mistralai/Mistral-7B-Instruct-v0.2")
-    model_name = st.sidebar.selectbox("Select Model", list(available_models.keys()), 
-                                    index=list(available_models.values()).index(current_model_id) if current_model_id in available_models.values() else 0)
-    model_id = available_models[model_name]
-
     # Update profile if changed
-    if (subject != profile["subject"] or 
-        level != profile["skill_level"] or 
-        mode != profile["teaching_mode"] or
-        model_id != profile.get("model_id")):
+    if (level != profile.get("skill_level") or 
+        mode != profile.get("teaching_mode")):
         
         memory.update_user_profile({
-            "subject": subject,
             "skill_level": level,
-            "teaching_mode": mode,
-            "model_id": model_id
+            "teaching_mode": mode
         })
         st.sidebar.success("Settings Updated!")
 
     return None, profile
 
-def display_stats(profile):
-    """Displays user progress stats in the sidebar or a separate section."""
-    st.sidebar.divider()
-    st.sidebar.subheader("📊 Progress Summary")
-    
-    st.sidebar.write(f"**Topics Studied:** {len(profile.get('topics_studied', []))}")
-    st.sidebar.write(f"**Weak Topics:** {', '.join(profile.get('weak_topics', [])) or 'None'}")
-    
-    history = profile.get("quiz_history", [])
-    if history:
-        avg_score = sum([q.get('score', 0) for q in history]) / len(history)
-        st.sidebar.write(f"**Avg Quiz Accuracy:** {avg_score:.1f}/3")
-    else:
-        st.sidebar.write("**Avg Quiz Accuracy:** N/A")
-
 def styling():
     """Injects custom CSS for a premium look."""
     st.markdown("""
     <style>
-    .stChatMessage {
-        border-radius: 15px;
-        padding: 10px;
-        margin-bottom: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700&display=swap');
+
+    /* Global Typography */
+    html, body, [class*="css"]  {
+        font-family: 'Inter', sans-serif !important;
     }
-    h1, h2, h3 {
-        color: #f9a8d4;
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Outfit', sans-serif !important;
+        color: #E2E8F0 !important;
+        letter-spacing: -0.5px;
+    }
+    
+    /* Main Background Gradient App */
+    .stApp {
+        background: radial-gradient(circle at 50% 0%, #171124 0%, #020617 60%, #000000 100%);
+    }
+
+    /* Hide Default Elements for native app feel */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {background: transparent !important;}
+
+    /* Premium Chat Messages */
+    .stChatMessage {
+        border-radius: 20px;
+        padding: 1.5rem;
+        margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        transition: transform 0.2s ease-in-out;
+    }
+    
+    .stChatMessage:hover {
+        transform: translateY(-2px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* The Avatar icons */
+    .stChatMessage [data-testid="stChatMessageAvatarUser"] {
+        background-color: #ec4899;
+    }
+    .stChatMessage [data-testid="stChatMessageAvatarAssistant"] {
+        background-color: #6366f1;
+    }
+
+    /* Input Area */
+    [data-testid="stChatInput"] {
+        border-radius: 20px !important;
+        border: 1px solid rgba(255,255,255,0.15) !important;
+        background: rgba(15, 23, 42, 0.8) !important;
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.1) !important;
+    }
+    
+    /* Sidebar Aesthetics */
+    [data-testid="stSidebar"] {
+        background-color: rgba(9, 9, 11, 0.95) !important;
+        border-right: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        border-radius: 12px;
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        padding: 0.5rem 1rem;
+    }
+    .stButton > button:hover {
+        transform: scale(1.02);
+        box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+    }
+    
+    /* Title Gradients */
+    h1 {
+        background: -webkit-linear-gradient(45deg, #ec4899, #8b5cf6, #3b82f6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 3rem !important;
+        font-weight: 800 !important;
     }
     </style>
     """, unsafe_allow_html=True)
